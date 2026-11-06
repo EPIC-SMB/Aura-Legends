@@ -247,11 +247,33 @@ Creator Dashboard), cross-session persistence (needs the place published), and U
 | 1 | Skeleton loads in Studio | ✅ Done |
 | 2 | Boss fights (HP, damage, death/respawn, zone unlock) | ✅ Done |
 | 3 | Aura drops + collection screen | ✅ Done |
-| 4 | Shop (upgrade store, capsule odds panel, pass store) | Next |
-| 5 | Engagement layer (daily streak UI, near-miss, social proof) | |
-| 6 | Store setup (create passes/products, paste IDs into `AuraConfig`) | |
-| 7 | Persistence verified across sessions | |
-| 8 | Maturity questionnaire in Creator Dashboard | |
+| 4 | **Boss visibility** — see known issues below | 🔜 Next |
+| 5 | Shop (upgrade store, capsule odds panel, pass store) | |
+| 6 | Engagement layer (daily streak UI, near-miss, social proof) | |
+| 7 | Store setup (create passes/products, paste IDs into `AuraConfig`) | |
+| 8 | Persistence verified across sessions | |
+| 9 | Maturity questionnaire in Creator Dashboard | |
+
+### Known issues
+
+**Boss is invisible to the player (confirmed by inspection, not yet fixed).**
+The boss spawns correctly — verified `Boss_<userId>` Model with a 10×10×10 neon-red
+Body at `(0, 6, -70)`, transparency 0, anchored. The problem is orientation and distance:
+
+| Thing | Position |
+|---|---|
+| Player spawns at | `(-2.3, 4.0, 42.4)` |
+| Player/camera facing | `(-0.30, 0, +0.95)` → **+z** |
+| Boss at | `(0, 6, -70)` → **112 studs behind the player** |
+
+The boss is behind the player's back when the fight starts. Layout is also inconsistent:
+zone pads sit at `z = +90` (in front of spawn) while the boss platform is at `z = -70`
+(behind spawn).
+
+**Planned fix (not applied):**
+1. Flip the spawn to face -z toward the boss platform, or move the boss platform to +z.
+2. Pull the fight closer — 112 studs is too far for a 10-stud boss; 35–45 studs reads better.
+3. Add a direction cue (beacon/arrow) or make the boss larger so the arena direction is obvious.
 
 ---
 
