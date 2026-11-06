@@ -206,10 +206,13 @@ local function buildArena()
     base.BottomSurface = Enum.SurfaceType.Smooth
     base.Parent = arenaFolder
 
+    -- Roblox avatars spawn facing -z, and the default camera sits behind them
+    -- looking -z too. The whole arena is laid out along -z so the boss is
+    -- directly in front of the player the moment a fight starts.
     local spawn = Instance.new("SpawnLocation")
     spawn.Name = "Spawn"
     spawn.Size = Vector3.new(14, 1, 14)
-    spawn.Position = Vector3.new(0, 0.5, 40)
+    spawn.Position = Vector3.new(0, 0.5, 0)
     spawn.Anchored = true
     spawn.Neutral = true
     spawn.Material = Enum.Material.Neon
@@ -218,10 +221,12 @@ local function buildArena()
     spawn.BottomSurface = Enum.SurfaceType.Smooth
     spawn.Parent = arenaFolder
 
+    -- Boss platform sits directly ahead of the spawn (spawn at z=0, platform
+    -- spans z=-75..5) so the fight is in view the moment it starts.
     local platform = Instance.new("Part")
     platform.Name = "BossPlatform"
-    platform.Size = Vector3.new(90, 1, 70)
-    platform.Position = Vector3.new(0, 0.5, -70)
+    platform.Size = Vector3.new(100, 1, 80)
+    platform.Position = Vector3.new(0, 0.5, -35)
     platform.Anchored = true
     platform.Material = Enum.Material.SmoothPlastic
     platform.Color = Color3.fromRGB(34, 34, 50)
@@ -229,11 +234,26 @@ local function buildArena()
     platform.BottomSurface = Enum.SurfaceType.Smooth
     platform.Parent = arenaFolder
 
+    -- Beacon marks the arena from anywhere on the map.
+    local beacon = Instance.new("Part")
+    beacon.Name = "BossBeacon"
+    beacon.Size = Vector3.new(3, 70, 3)
+    beacon.Position = Vector3.new(0, 36, -70)
+    beacon.Anchored = true
+    beacon.Material = Enum.Material.Neon
+    beacon.Color = Color3.fromRGB(255, 70, 70)
+    beacon.Transparency = 0.4
+    beacon.CanCollide = false
+    beacon.Parent = arenaFolder
+
+    -- Zone pads line the sides so they never sit between the player and the boss.
     for i, zone in ipairs(Config.ZONES) do
         local pad = Instance.new("Part")
         pad.Name = "ZonePad_" .. i
         pad.Size = Vector3.new(12, 1, 12)
-        pad.Position = Vector3.new(-90 + (i - 1) * 45, 0.5, 90)
+        local side = (i % 2 == 1) and -1 or 1
+        local row = math.ceil(i / 2)
+        pad.Position = Vector3.new(side * 85, 0.5, -20 - (row - 1) * 35)
         pad.Anchored = true
         pad.Material = Enum.Material.Neon
         pad.Color = Color3.fromRGB(255, 200, 80)
@@ -286,8 +306,8 @@ local function spawnBoss(player, zone)
 
     local body = Instance.new("Part")
     body.Name = "Body"
-    body.Size = Vector3.new(10, 10, 10)
-    body.Position = Vector3.new(0, 6, -70)
+    body.Size = Vector3.new(20, 20, 20)
+    body.Position = Vector3.new(0, 11, -45)
     body.Anchored = true
     body.Material = Enum.Material.Neon
     body.Color = Color3.fromRGB(255, 70, 70)
@@ -296,7 +316,7 @@ local function spawnBoss(player, zone)
 
     local nameTag = Instance.new("BillboardGui")
     nameTag.Size = UDim2.new(0, 340, 0, 74)
-    nameTag.StudsOffset = Vector3.new(0, 8, 0)
+    nameTag.StudsOffset = Vector3.new(0, 16, 0)
     nameTag.AlwaysOnTop = true
 
     local title = Instance.new("TextLabel")
