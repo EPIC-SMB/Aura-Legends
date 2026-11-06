@@ -1,5 +1,5 @@
--- Aura Legends — Client v0.2
--- Sends intents to the server and renders the HUD. Never decides money.
+-- Aura Legends — Client v0.3
+-- Sends intents to the server and renders the HUD. Never decides the economy.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -26,8 +26,6 @@ local state = {
     Boss = nil,
     Dead = false,
     AuraIds = {},
-    PaidRandomAllowed = false,
-    Passes = {},
 }
 
 local remotes = nil
@@ -193,7 +191,6 @@ local function getRemotes()
             Train = folder:FindFirstChild("Train"),
             BuyUpgrade = folder:FindFirstChild("BuyUpgrade"),
             ClaimDaily = folder:FindFirstChild("ClaimDaily"),
-            BuyCapsule = folder:FindFirstChild("BuyCapsule"),
             EnterZone = folder:FindFirstChild("EnterZone"),
             Attack = folder:FindFirstChild("Attack"),
             State = folder:FindFirstChild("State"),
@@ -346,11 +343,7 @@ buildGui = function(r)
     hud.Daily.Name = "Daily"
     hud.Daily.Parent = screen
 
-    hud.Capsule = newButton("MYSTERY CAPSULE", UDim2.new(0, 590, 1, -70), UDim2.new(0, 200, 0, 50), Color3.fromRGB(150, 70, 200))
-    hud.Capsule.Name = "Capsule"
-    hud.Capsule.Parent = screen
-
-    hud.Fight = newButton("FIGHT BOSS", UDim2.new(0, 800, 1, -70), UDim2.new(0, 200, 0, 50), Color3.fromRGB(200, 120, 40))
+    hud.Fight = newButton("FIGHT BOSS", UDim2.new(0, 590, 1, -70), UDim2.new(0, 200, 0, 50), Color3.fromRGB(200, 120, 40))
     hud.Fight.Name = "Fight"
     hud.Fight.Parent = screen
 
@@ -376,9 +369,6 @@ buildGui = function(r)
     end)
     hud.Daily.MouseButton1Click:Connect(function()
         r.ClaimDaily:FireServer()
-    end)
-    hud.Capsule.MouseButton1Click:Connect(function()
-        r.BuyCapsule:FireServer()
     end)
     hud.Fight.MouseButton1Click:Connect(function()
         r.EnterZone:FireServer(state.Zone)
@@ -411,8 +401,6 @@ local function onState(message, a, b, c, d, e, f)
         state.HP = a.HP
         state.MaxHP = a.MaxHP
         state.AuraIds = a.Auras or {}
-        state.PaidRandomAllowed = a.PaidRandomAllowed
-        state.Passes = a.Passes
         setBar(hud.PlayerBar, a.HP / a.MaxHP, tostring(a.HP) .. "/" .. tostring(a.MaxHP))
         refresh()
     elseif message == "EnergyChanged" then
@@ -444,12 +432,6 @@ local function onState(message, a, b, c, d, e, f)
         flash("Day " .. tostring(a) .. " reward: +" .. tostring(b) .. " Energy")
     elseif message == "DailyFailed" then
         flash(tostring(a))
-    elseif message == "CapsuleRestricted" then
-        flash("Paid random items aren't available for your account — earn capsules from bosses instead.")
-    elseif message == "CapsulePending" then
-        flash("Store setup pending — create the product in the Creator Dashboard first.")
-    elseif message == "CapsuleOpened" then
-        flash("Capsule: " .. tostring(a))
     elseif message == "AuraUnlocked" then
         state.AuraIds[#state.AuraIds + 1] = a
         refresh()
@@ -501,14 +483,6 @@ local function onState(message, a, b, c, d, e, f)
         hud.BossBar.Visible = false
         hud.Death.Visible = false
         setBar(hud.PlayerBar, a / b, tostring(a) .. "/" .. tostring(b))
-    elseif message == "PolicyChanged" then
-        state.PaidRandomAllowed = a
-    elseif message == "PassesChanged" then
-        state.Passes = a
-    elseif message == "BoostChanged" then
-        flash("2x Energy boost active")
-    elseif message == "RespawnTokensChanged" then
-        flash("Respawn tokens: " .. tostring(a))
     end
 end
 

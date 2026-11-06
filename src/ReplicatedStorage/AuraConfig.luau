@@ -1,13 +1,9 @@
 -- Aura Legends — Config
--- Single source of truth for every balance number, price, loot table and
--- compliance answer. Data-driven so balance changes never touch a script.
+-- Single source of truth for every balance number and loot table.
+-- Data-driven so balance changes never touch a script.
 --
--- Roblox Creator Hub rules this file is built around:
---   * Passes are one-time permanent privileges.
---   * Developer products are repeatable.
---   * Paid random items must disclose every outcome with exact odds that sum
---     to exactly 100%, and restricted users need an earnable alternative.
---   * Free players must have a complete loop with a real currency sink.
+-- This is a fully free game: no passes, no developer products, no paid
+-- random items. Every reward is earned by playing.
 
 local Config = {}
 
@@ -101,73 +97,6 @@ Config.PLAYER = {
 }
 
 ----------------------------------------------------------------
--- PASSES  (one-time permanent privileges)
-----------------------------------------------------------------
-Config.PASSES = {
-    VIP = {
-        Id = 0,
-        Price = 199,
-        Name = "VIP",
-        Description = "2x Energy, exclusive VIP zone, golden aura trail",
-        Perks = { "EnergyBoost", "VIPZone", "GoldenAura" },
-        EnergyMultiplier = 2,
-    },
-    AutoTrain = {
-        Id = 0,
-        Price = 149,
-        Name = "Auto Train",
-        Description = "Passively generates Energy while you play",
-        Perks = { "AutoTrain" },
-        AutoRatePerSecond = 2,
-    },
-    LuckyAura = {
-        Id = 0,
-        Price = 99,
-        Name = "Lucky Aura",
-        Description = "+25% Aura drop chance (in-game odds update while active)",
-        Perks = { "LuckyAura" },
-        DropBonus = 0.25,
-    },
-    PetSlot = {
-        Id = 0,
-        Price = 79,
-        Name = "Extra Pet Slot",
-        Description = "Carry one additional companion",
-        Perks = { "ExtraPetSlot" },
-        ExtraSlots = 1,
-    },
-}
-
-----------------------------------------------------------------
--- DEVELOPER PRODUCTS  (repeatable)
--- Paid random items carry an Odds table: Weight and DisplayPct must both
--- sum to exactly 100. Restricted users must have an earnable alternative.
-----------------------------------------------------------------
-Config.PRODUCTS = {
-    EnergyPackSmall = { Id = 0, Price = 49,  Amount = 500,   Name = "500 Energy" },
-    EnergyPackMedium = { Id = 0, Price = 149, Amount = 2000,  Name = "2,000 Energy" },
-    EnergyPackLarge = { Id = 0, Price = 499, Amount = 7500,  Name = "7,500 Energy" },
-    EnergyPackMega = { Id = 0, Price = 999, Amount = 20000, Name = "20,000 Energy" },
-    RespawnToken = { Id = 0, Price = 25, Name = "Instant Respawn" },
-    Boost2x1H = { Id = 0, Price = 69, Name = "2x Energy (1 hour)" },
-
-    MysteryAura = {
-        Id = 0,
-        Price = 99,
-        Name = "Mystery Aura Capsule",
-        PaidRandom = true,
-        FreeEarnable = true,
-        BossDropChance = 0.05,
-        Odds = {
-            { Outcome = "500 Energy (Common Shards)",    Weight = 60, DisplayPct = 60, Rarity = "Common",    Energy = 500 },
-            { Outcome = "1500 Energy (Uncommon Shards)", Weight = 25, DisplayPct = 25, Rarity = "Uncommon",  Energy = 1500 },
-            { Outcome = "A random Rare Aura",            Weight = 10, DisplayPct = 10, Rarity = "Rare" },
-            { Outcome = "A random Legendary Aura",       Weight =  5, DisplayPct =  5, Rarity = "Legendary" },
-        },
-    },
-}
-
-----------------------------------------------------------------
 -- DAILY LOGIN / STREAK
 ----------------------------------------------------------------
 Config.DAILY = {
@@ -197,11 +126,11 @@ Config.MATURITY = {
         ViolenceIntensity = "Mild, stylized, cartoonish — no blood or gore",
         ContainsFear = false,
         ContainsCrudeHumor = false,
-        ContainsPaidRandomItems = true,
+        ContainsPaidRandomItems = false,
         ContainsPaidItemTrading = false,
         ContainsAds = false,
     },
-    Notes = "Stylized cartoon combat with no realistic blood. Paid random items use disclosed odds that sum to 100% and are gated by PolicyService with a free earnable path.",
+    Notes = "Stylized cartoon combat with no realistic blood. Fully free game: no passes, no developer products, no paid random items.",
 }
 
 ----------------------------------------------------------------
@@ -227,33 +156,6 @@ function Config.validateAuras()
         total = total + aura.Weight
     end
     assert(total == 100, "Aura drop weights sum to " .. total .. ", expected exactly 100")
-end
-
-function Config.validateProducts()
-    for key, definition in pairs(Config.PRODUCTS) do
-        assert(definition.Id ~= nil, "Product missing Id: " .. tostring(key))
-        assert(definition.Price >= 1, "Product price below 1 Robux: " .. tostring(key))
-        if definition.PaidRandom then
-            assert(type(definition.Odds) == "table", "Paid random product without Odds: " .. tostring(key))
-            local weightTotal = 0
-            local displayTotal = 0
-            for _, outcome in ipairs(definition.Odds) do
-                weightTotal = weightTotal + (outcome.Weight or 0)
-                displayTotal = displayTotal + (outcome.DisplayPct or 0)
-            end
-            assert(weightTotal == 100, key .. " odds weights sum to " .. weightTotal .. ", expected exactly 100")
-            assert(displayTotal == 100, key .. " displayed odds sum to " .. displayTotal .. ", expected exactly 100")
-            assert(definition.FreeEarnable or definition.BossDropChance,
-                key .. " needs a free earnable path or boss drop for restricted users")
-        end
-    end
-end
-
-function Config.validatePasses()
-    for key, definition in pairs(Config.PASSES) do
-        assert(definition.Id ~= nil, "Pass missing Id: " .. tostring(key))
-        assert(definition.Price >= 1, "Pass price below 1 Robux: " .. tostring(key))
-    end
 end
 
 function Config.validateUpgrades()
@@ -284,8 +186,6 @@ end
 
 function Config.validate()
     Config.validateAuras()
-    Config.validateProducts()
-    Config.validatePasses()
     Config.validateUpgrades()
     Config.validateBalance()
     return true

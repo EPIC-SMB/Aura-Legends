@@ -1,11 +1,9 @@
 -- Aura Legends — Server (entry point)
--- Owns the economy, receipts, pass privileges and persistence.
+-- Owns the economy, combat and persistence.
 -- Clients only send intents; the server decides every outcome.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local MarketplaceService = game:GetService("MarketplaceService")
-local PolicyService = game:GetService("PolicyService")
 local DataStoreService = game:GetService("DataStoreService")
 
 local Config = require(ReplicatedStorage:WaitForChild("AuraConfig"))
@@ -37,7 +35,6 @@ end
 local TrainRemote = makeRemote("RemoteEvent", "Train")
 local BuyUpgradeRemote = makeRemote("RemoteEvent", "BuyUpgrade")
 local ClaimDailyRemote = makeRemote("RemoteEvent", "ClaimDaily")
-local BuyCapsuleRemote = makeRemote("RemoteEvent", "BuyCapsule")
 local EnterZoneRemote = makeRemote("RemoteEvent", "EnterZone")
 local AttackRemote = makeRemote("RemoteEvent", "Attack")
 local StateRemote = makeRemote("RemoteEvent", "State")
@@ -85,7 +82,6 @@ local function defaultProfile()
         DailyStreak = 0,
         DailyDay = 0,
         LastLoginDay = 0,
-        RespawnTokens = 0,
         TotalPlaySeconds = 0,
     }
 end
@@ -138,27 +134,12 @@ end
 ----------------------------------------------------------------
 -- Economy helpers
 ----------------------------------------------------------------
-local function energyMultiplier(player)
-    local session = sessions[player.UserId]
-    if not session then
-        return 1
-    end
-    local multiplier = 1
-    if session.Passes.VIP then
-        multiplier = multiplier * Config.PASSES.VIP.EnergyMultiplier
-    end
-    if session.BoostExpires > os.time() then
-        multiplier = multiplier * 2
-    end
-    return multiplier
-end
-
 local function addEnergy(player, amount, reason)
     local session = sessions[player.UserId]
     if not session then
         return 0
     end
-    local gained = math.floor(amount * energyMultiplier(player))
+    local gained = math.floor(amount)
     session.Profile.Energy = session.Profile.Energy + gained
     session.Profile.LifetimeEnergy = session.Profile.LifetimeEnergy + gained
     StateRemote:FireClient(player, "EnergyChanged", session.Profile.Energy, gained, reason or "gain")
@@ -411,9 +392,6 @@ end
 
 local function rollAura(player, session)
     local chance = Config.PLAYER.AuraDropChance
-    if session.Passes.LuckyAura then
-        chance = chance + Config.PASSES.LuckyAura.DropBonus
-    end
     if math.random() > chance then
         return
     end
@@ -432,169 +410,12 @@ local function rollAura(player, session)
 end
 
 ----------------------------------------------------------------
--- Compliance gates
-----------------------------------------------------------------
-local function applyPolicyGate(player)
-    local session = sessions[player.UserId]
-    if not session then
-        return
-    end
-    -- Fail closed: unknown eligibility means restricted.
-    session.PaidRandomAllowed = false
-    session.PaidTradingAllowed = false
-    local ok, info = pcall(function()
-        return PolicyService:GetPolicyInfoForPlayerAsync(player)
-    end)
-    if ok and type(info) == "table" then
-        session.PaidRandomAllowed = (info.ArePaidRandomItemsRestricted == false)
-        session.PaidTradingAllowed = (info.IsPaidItemTradingAllowed == true)
-    end
-    StateRemote:FireClient(player, "PolicyChanged", session.PaidRandomAllowed, session.PaidTradingAllowed)
-end
-
-local function applyPasses(player)
-    local session = sessions[player.UserId]
-    if not session then
-        return
-    end
-    for key, definition in pairs(Config.PASSES) do
-        local owns = false
-        if definition.Id ~= 0 then
-            local ok, result = pcall(function()
-                return MarketplaceService:UserOwnsGamePassAsync(player.UserId, definition.Id)
-            end)
-            owns = (ok and result == true)
-        end
-        session.Passes[key] = owns
-    end
-    StateRemote:FireClient(player, "PassesChanged", session.Passes)
-end
-
-----------------------------------------------------------------
--- Receipts
-----------------------------------------------------------------
-local keyByProductId = {}
-for key, definition in pairs(Config.PRODUCTS) do
-    if definition.Id ~= 0 then
-        keyByProductId[definition.Id] = key
-    end
-end
-
-local processedReceipts = {}
-
-local grantPaidRandomOutcome
-
-local function grantProduct(player, productKey)
-    local session = sessions[player.UserId]
-    if not session then
-        return false
-    end
-    local definition = Config.PRODUCTS[productKey]
-    if not definition then
-        return false
-    end
-
-    if definition.Amount then
-        addEnergy(player, definition.Amount, "product:" .. productKey)
-    elseif productKey == "RespawnToken" then
-        session.Profile.RespawnTokens = session.Profile.RespawnTokens + 1
-        StateRemote:FireClient(player, "RespawnTokensChanged", session.Profile.RespawnTokens)
-    elseif productKey == "Boost2x1H" then
-        session.BoostExpires = os.time() + 3600
-        StateRemote:FireClient(player, "BoostChanged", session.BoostExpires)
-    elseif definition.PaidRandom then
-        local roll = math.random(1, 100)
-        local cumulative = 0
-        for _, outcome in ipairs(definition.Odds) do
-            cumulative = cumulative + outcome.Weight
-            if roll <= cumulative then
-                grantPaidRandomOutcome(player, outcome)
-                break
-            end
-        end
-    end
-    return true
-end
-
-grantPaidRandomOutcome = function(player, outcome)
-    local session = sessions[player.UserId]
-    if not session then
-        return
-    end
-    if outcome.Energy then
-        addEnergy(player, outcome.Energy, "capsule")
-    else
-        local pool = {}
-        for _, aura in ipairs(Config.AURAS) do
-            if aura.Rarity == outcome.Rarity then
-                pool[#pool + 1] = aura.Id
-            end
-        end
-        if #pool > 0 then
-            local chosen = pool[math.random(1, #pool)]
-            session.Profile.Auras[#session.Profile.Auras + 1] = chosen
-            StateRemote:FireClient(player, "AuraUnlocked", chosen)
-        end
-    end
-    StateRemote:FireClient(player, "CapsuleOpened", outcome.Outcome, outcome.Rarity)
-end
-
-local function processReceipt(receiptInfo)
-    local player = Players:GetPlayerByUserId(receiptInfo.PlayerId)
-    if not player then
-        return Enum.ProductPurchaseDecision.NotProcessedYet
-    end
-
-    local productKey = keyByProductId[receiptInfo.ProductId]
-    if not productKey then
-        warn("[AuraLegends] Unknown product id: " .. tostring(receiptInfo.ProductId))
-        return Enum.ProductPurchaseDecision.NotProcessedYet
-    end
-
-    -- Idempotency: a re-delivered receipt must never double-grant.
-    if processedReceipts[receiptInfo.PurchaseId] then
-        return Enum.ProductPurchaseDecision.PurchaseGranted
-    end
-
-    local granted = grantProduct(player, productKey)
-    if not granted then
-        return Enum.ProductPurchaseDecision.NotProcessedYet
-    end
-
-    processedReceipts[receiptInfo.PurchaseId] = true
-    saveProfile(player)
-    return Enum.ProductPurchaseDecision.PurchaseGranted
-end
-
-MarketplaceService.ProcessReceipt = processReceipt
-
-MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passId, purchased)
-    if not purchased then
-        return
-    end
-    for key, definition in pairs(Config.PASSES) do
-        if definition.Id ~= 0 and definition.Id == passId then
-            local session = sessions[player.UserId]
-            if session then
-                session.Passes[key] = true
-                StateRemote:FireClient(player, "PassesChanged", session.Passes)
-                saveProfile(player)
-            end
-        end
-    end
-end)
-
-----------------------------------------------------------------
 -- Player lifecycle
 ----------------------------------------------------------------
 local function onPlayerAdded(player)
     sessions[player.UserId] = {
         Profile = loadProfile(player.UserId),
-        Passes = {},
         RateBuckets = {},
-        BoostExpires = 0,
-        PaidRandomAllowed = false,
-        PaidTradingAllowed = false,
         Boss = nil,
         BossThread = nil,
         HP = 0,
@@ -602,8 +423,6 @@ local function onPlayerAdded(player)
         Dead = false,
         LastAttack = 0,
     }
-    applyPolicyGate(player)
-    applyPasses(player)
 
     local session = sessions[player.UserId]
     session.HP = playerMaxHealth(session)
@@ -620,8 +439,6 @@ local function onPlayerAdded(player)
         HP = session.HP,
         MaxHP = session.MaxHP,
         DailyStreak = session.Profile.DailyStreak,
-        PaidRandomAllowed = session.PaidRandomAllowed,
-        Passes = session.Passes,
     })
     print("[AuraLegends] " .. player.Name .. " joined (Energy " .. session.Profile.Energy .. ")")
 end
@@ -720,35 +537,6 @@ ClaimDailyRemote.OnServerEvent:Connect(function(player)
 
     StateRemote:FireClient(player, "DailyClaimed", dayIndex, reward, session.Profile.DailyStreak)
     saveProfile(player)
-end)
-
-BuyCapsuleRemote.OnServerEvent:Connect(function(player)
-    if isRateLimited(player, "BuyCapsule") then
-        return
-    end
-    local session = sessions[player.UserId]
-    if not session then
-        return
-    end
-
-    local definition = Config.PRODUCTS.MysteryAura
-
-    -- Paid random items policy: restricted users never get charged.
-    if session.PaidRandomAllowed ~= true then
-        StateRemote:FireClient(player, "CapsuleRestricted", definition.Name, definition.FreeEarnable)
-        return
-    end
-    if definition.Id == 0 then
-        StateRemote:FireClient(player, "CapsulePending", definition.Name)
-        return
-    end
-
-    local ok, err = pcall(function()
-        MarketplaceService:PromptProductPurchase(player, definition.Id)
-    end)
-    if not ok then
-        warn("[AuraLegends] PromptProductPurchase failed: " .. tostring(err))
-    end
 end)
 
 local function enterZone(player, zoneIndex)
@@ -881,12 +669,5 @@ end)
 workspace:SetAttribute("AuraServerReady", true)
 workspace:SetAttribute("AuraConfigVersion", Config.VERSION)
 workspace:SetAttribute("AuraZoneCount", #Config.ZONES)
-workspace:SetAttribute("AuraProductCount", (function()
-    local count = 0
-    for _ in pairs(Config.PRODUCTS) do
-        count = count + 1
-    end
-    return count
-end)())
 
 print("[AuraLegends] Server ready — " .. #Config.ZONES .. " zones, " .. #Config.AURAS .. " auras")

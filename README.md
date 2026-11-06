@@ -4,8 +4,10 @@ An original anime-style **grind-and-fight simulator** for Roblox, built to sit a
 games on the Charts page (Blox Fruits, Attack on Titan Revolution, Ragdoll Physics, Tsunami).
 
 Collect elemental **Auras**, train your power, fight bosses across five zones, and spend your
-way up a free upgrade track. Robux buys multipliers, cosmetics and convenience — never the
-core loop.
+way up a free upgrade track.
+
+**This is a fully free game.** No passes, no developer products, no paid random items — every
+reward is earned by playing.
 
 ---
 
@@ -28,43 +30,23 @@ Everything is original — no Roblox assets, no branded names, no copyrighted ma
 
 ---
 
-## 2. Roblox Creator Hub rules we're building to
+## 2. Design rules we're building to
 
-Fetched from the live docs (not memory). These are the binding constraints:
-
-### Passes are one-time permanent privileges
-Restricted area, avatar item, or permanent power-up. **Not** repeatable currency.
-Our passes (`VIP`, `Auto Train`, `Lucky Aura`, `Extra Pet Slot`) are all permanent privileges.
-
-### Developer products are repeatable
-Currency, potions, boosts. Our products (Energy packs, Respawn Token, 2x Boost, Mystery Aura
-Capsule) are all repeatable.
-
-### Every developer product is granted inside `ProcessReceipt`
-Validate User ID, Product ID and receipt status. Grant only on an **Open** receipt, then
-acknowledge so it never re-fires. Our `AuraServer.server.luau` does exactly this, keyed on
-`PurchaseId` for idempotency — a re-delivered receipt never double-grants.
-
-### Paid random items must disclose every outcome with exact odds summing to exactly 100%
-The Mystery Aura Capsule shows all four outcomes with percentages in-game, and `AuraConfig.luau`
-runs a load-time `assert` that both the weights **and** the displayed percentages total 100.
-A future edit that breaks the odds fails loudly on load instead of shipping a policy violation.
-
-Every outcome grants value — there is no "you lost your Robux" outcome.
-
-### Restricted users need a real alternative
-`PolicyService:GetPolicyInfoForPlayerAsync` is called on join. The gate **fails closed**
-(unknown eligibility = restricted). Restricted users are never charged; the capsule is also
-earnable from bosses (`BossDropChance = 0.05`), which is the "unpaid, earnable path" treatment
-Roblox explicitly allows.
+### Free players get a complete loop
+Every reward in the game is earned by playing. Energy is the single currency, and it is both
+earnable and spendable — see section 3.
 
 ### No fake scarcity or fake timers
 FOMO systems must be truthful. No countdown that auto-restarts, no "almost out of stock" claims.
 Our only time-based system is the daily streak, which resets after a real 36-hour window.
 
-### Free players must be able to play without spending
-Roblox rules plus basic retention sense: paywall the core loop and the game dies. Free players
-get a complete loop with a real currency sink.
+### Combat is server-authoritative
+Clients send intents ("I attacked", "I entered zone 1"). The server decides the outcome and
+pushes the result back. Nothing about the player's state is trusted from the client.
+
+### Rate limiting and validation on every remote
+Every repeatable remote is rate-limited per player (10 actions/second), and every argument is
+type-checked before use. See section 6.
 
 ---
 
@@ -77,8 +59,8 @@ can earn but nothing to spend it on. Checked and enforced here:
 |---|---|
 | Is the free currency spendable? | Yes — **Energy** buys Power, Stamina and Aura Magnet upgrades |
 | Does playing buy power? | Yes — Power adds real damage, Stamina adds real health, Magnet adds real pickup radius |
-| Can Robux-only items be bought with Energy? | No — passes and products are Robux-only by definition |
-| Is the split labelled in the UI? | Yes — the store colour-codes cards by source |
+| Is there any premium currency? | No — Energy is the only currency, and it is earnable by playing |
+| Is the split labelled in the UI? | N/A — there is nothing to split |
 
 ---
 
@@ -86,7 +68,7 @@ can earn but nothing to spend it on. Checked and enforced here:
 
 | Mechanic | Psychology | Implementation |
 |---|---|---|
-| Variable ratio rewards | Skinner box — unpredictable rewards beat predictable ones | Random Aura drops from bosses, capsule rolls, daily reward quality |
+| Variable ratio rewards | Skinner box — unpredictable rewards beat predictable ones | Random Aura drops from bosses, daily reward quality |
 | Zeigarnik effect | Incomplete tasks create cognitive tension | Boss HP bars, "Power Lv 47/100", "Zone 3/5", collection counters |
 | Loss aversion | Losses loom ~2x larger than gains | Near-miss messaging ("one tier below Legendary"), streak preservation |
 | FOMO (truthful) | Anticipated regret drives urgency | Daily login calendar with real 36h window — no auto-restarting timers |
@@ -94,54 +76,49 @@ can earn but nothing to spend it on. Checked and enforced here:
 | Sunk cost bias | Continued investment after prior spending | Collection screen, lifetime stats, boss kill counters |
 | Endowment effect | Ownership increases perceived value | "Your Auras" collection, equipped Aura |
 | Social proof | Peer behaviour influences participation | "X players online", "Y players defeated this boss today" |
-| Dopamine anticipation | Uncertainty sustains engagement | Capsule roll animation, chest reveal, drop beams |
+| Dopamine anticipation | Uncertainty sustains engagement | Aura drop beams, boss defeat rewards |
 
-**Hard rules baked in:** odds are disclosed and sum to 100; near-miss messages are honest
-(actual roll, not fabricated); streak bonuses are capped at 3x; no fake countdowns.
+**Hard rules baked in:** drop odds are disclosed in-game and sum to 100; near-miss messages are
+honest (actual roll, not fabricated); streak bonuses are capped at 3x; no fake countdowns.
 
 ---
 
-## 5. Free vs paid
+## 5. The in-game economy
 
-| Item | Price | Type | What it does |
+One currency, two directions. That's the whole economy.
+
+| Direction | Source | Where it goes |
+|---|---|---|
+| **Earn Energy** | Training, boss kills, daily login rewards | — |
+| **Spend Energy** | — | Power, Stamina, Aura Magnet upgrades |
+
+| Upgrade | Effect | Max level | Cost formula |
 |---|---|---|---|
-| **VIP** | R$199 | Pass | 2x Energy, VIP zone, golden aura trail |
-| **Auto Train** | R$149 | Pass | Passive Energy while playing |
-| **Lucky Aura** | R$99 | Pass | +25% Aura drop chance (in-game odds update) |
-| **Extra Pet Slot** | R$79 | Pass | One additional companion |
-| 500 Energy | R$49 | Product | Repeatable currency |
-| 2,000 Energy | R$149 | Product | Repeatable currency |
-| 7,500 Energy | R$499 | Product | Repeatable currency |
-| 20,000 Energy | R$999 | Product | Repeatable currency |
-| Instant Respawn | R$25 | Product | Skip the death timer |
-| 2x Energy (1h) | R$69 | Product | Temporary boost |
-| **Mystery Aura Capsule** | R$99 | Product (paid random) | 60% / 25% / 10% / 5% — odds shown in-game |
+| Power | +8 damage | 100 | `10 + 5 × level` |
+| Stamina | +40 max health | 60 | `15 + 6 × level` |
+| Aura Magnet | +6 pickup radius | 25 | `20 + 6 × level` |
 
-**A free player can reach every zone, max every upgrade, collect every Aura and clear every
-boss.** Robux shortens the grind; it does not remove it.
+Costs are **linear**, not exponential. Exponential (`10 × 1.16^level`) makes the late game
+mathematically impossible to afford; linear keeps the grind predictable.
+
+**A player can reach every zone, max every upgrade, collect every Aura and clear every boss
+without spending anything.** There is no premium track.
 
 ---
 
-## 6. Compliance mapping
+## 6. Compliance and safety mapping
 
-| Creator Hub rule | Where it is satisfied |
+| Rule | Where it is satisfied |
 |---|---|
-| Passes are one-time permanent privileges | `Config.PASSES` — all four are permanent |
-| Products are repeatable | `Config.PRODUCTS` — all repeatable |
-| Grants only inside `ProcessReceipt` | `AuraServer.server.luau` → `MarketplaceService.ProcessReceipt` |
-| Receipt idempotency | `processedReceipts[PurchaseId]` guard |
-| Unknown product → `NotProcessedYet` | `processReceipt` early return |
-| Offline player → `NotProcessedYet` | `Players:GetPlayerByUserId` nil check |
-| Paid random odds disclosed, sum to 100 | `Config.PRODUCTS.MysteryAura.Odds` + `validateProducts()` |
-| Restricted users not charged | `applyPolicyGate` (fail-closed) + `BuyCapsuleRemote` guard |
-| Earnable alternative for restricted users | `FreeEarnable = true`, `BossDropChance = 0.05` |
-| No fake timers / fake scarcity | Only real daily streak, 36h window |
+| No fake timers / fake scarcity | Only the real daily streak, 36h window |
 | Free players have a complete loop | Energy → upgrades → zones → Auras |
 | Maturity answers mirrored in config | `Config.MATURITY` |
-| Pass privileges assigned server-side | `applyPasses` on join + `PromptGamePassPurchaseFinished` |
-| No client-authoritative money | Client sends intents only; server grants everything |
-| Rate limiting on repeatable remotes | `isRateLimited` — 10 actions / second, per player per action |
+| No client-authoritative state | Client sends intents only; the server decides and pushes results |
+| Rate limiting on repeatable remotes | `isRateLimited` — 10 actions/second, per player per action |
+| Type validation on remote arguments | Every handler checks `type()` before use |
+| Per-action cooldowns | Attack is capped at `Config.PLAYER.AttackInterval` |
 | DataStore fails soft in Studio | `pcall` around `GetDataStore`, in-memory fallback |
+| No paid random items | Nothing is purchased, so the odds-disclosure rules don't apply |
 
 ---
 
@@ -154,9 +131,9 @@ AuraLegends/
 ├── README.md                            This file
 └── src/
     ├── ReplicatedStorage/
-    │   └── AuraConfig.luau              ModuleScript — ALL balance/odds/prices + validation
+    │   └── AuraConfig.luau              ModuleScript — ALL balance/odds + validation
     ├── ServerScriptService/
-    │   └── AuraServer.server.luau       Script — economy, receipts, passes, persistence
+    │   └── AuraServer.server.luau       Script — economy, combat, persistence
     └── StarterPlayer/
         └── StarterPlayerScripts/
             └── AuraClient.client.luau   LocalScript — HUD, sends intents
@@ -226,8 +203,8 @@ rojo build . -o AuraLegends.rbxl
 - Aura drop: weighted roll (verified with a temporary 100% chance) → granted → collection UI.
 - DataStore fails soft in Studio and falls back to in-memory persistence.
 
-**Not yet verified:** real Robux receipts and pass grants (needs products created in the
-Creator Dashboard), cross-session persistence (needs the place published), and UI feel.
+**Not yet verified:** cross-session persistence (needs the place published and Studio API
+access enabled) and UI feel/animation.
 
 ### Bugs caught by testing (and fixed)
 1. HUD elements had auto-generated names, so nothing was inspectable from the MCP.
@@ -247,50 +224,43 @@ Creator Dashboard), cross-session persistence (needs the place published), and U
 | 1 | Skeleton loads in Studio | ✅ Done |
 | 2 | Boss fights (HP, damage, death/respawn, zone unlock) | ✅ Done |
 | 3 | Aura drops + collection screen | ✅ Done |
-| 4 | **Boss visibility** — see known issues below | 🔜 Next |
-| 5 | Shop (upgrade store, capsule odds panel, pass store) | |
-| 6 | Engagement layer (daily streak UI, near-miss, social proof) | |
-| 7 | Store setup (create passes/products, paste IDs into `AuraConfig`) | |
-| 8 | Persistence verified across sessions | |
-| 9 | Maturity questionnaire in Creator Dashboard | |
+| 4 | Boss visible on spawn (arena laid out along -z) | ✅ Done |
+| 5 | Remove all monetization (fully free game) | ✅ Done |
+| 6 | **Boss models** — real silhouettes instead of cubes | 🔜 Next |
+| 7 | Shop UI (upgrade store, daily reward panel) | |
+| 8 | Engagement layer (near-miss, streak milestones, social proof) | |
+| 9 | Aura equip + combat effects | |
+| 10 | Persistence verified across sessions | |
+| 11 | Maturity questionnaire in Creator Dashboard | |
 
 ### Known issues
 
-**Boss is invisible to the player (confirmed by inspection, not yet fixed).**
-The boss spawns correctly — verified `Boss_<userId>` Model with a 10×10×10 neon-red
-Body at `(0, 6, -70)`, transparency 0, anchored. The problem is orientation and distance:
+**Boss is currently a glowing red cube.** Verified working — a 20×20×20 neon body at
+`(0, 11, -45)`, correctly in view on spawn (`in_view_dot = 0.954`). It has no silhouette yet:
+no head, legs, or eyes, so "Cinder Wolf" doesn't read as a wolf. This is the top polish item.
 
-| Thing | Position |
-|---|---|
-| Player spawns at | `(-2.3, 4.0, 42.4)` |
-| Player/camera facing | `(-0.30, 0, +0.95)` → **+z** |
-| Boss at | `(0, 6, -70)` → **112 studs behind the player** |
-
-The boss is behind the player's back when the fight starts. Layout is also inconsistent:
-zone pads sit at `z = +90` (in front of spawn) while the boss platform is at `z = -70`
-(behind spawn).
-
-**Planned fix (not applied):**
-1. Flip the spawn to face -z toward the boss platform, or move the boss platform to +z.
-2. Pull the fight closer — 112 studs is too far for a 10-stud boss; 35–45 studs reads better.
-3. Add a direction cue (beacon/arrow) or make the boss larger so the arena direction is obvious.
+**The boss beacon is red and reads as a "zone marker".** It's a 70-stud translucent neon pillar
+at `(0, 36, -70)` marking the arena. Open question: keep, recolour, or remove.
 
 ---
 
-## 11. Honest money notes
+## 11. Why there's no monetization
 
-- You receive **70% of Robux spent**; the 30% marketplace fee is not negotiable.
-- Robux only becomes real money through **DevEx**: age 13+, verified email, **30,000 earned
-  Robux**, tax form on file. Standard rate is ~0.0038 Robux, roughly **$114 per 30,000 Robux**.
-- **Paid access** to a game requires age 13+ with verified ID and a 30-day-old account. Passes
-  and developer products do not.
-- Cross-game developer product sales are **disabled from May 30, 2026** — this game is
-  single-game only, no cross-game flows.
-- All monetization IDs are currently **0**. The store shows "Setup pending" until you create the
-  real passes/products in the Creator Dashboard and paste the IDs into `AuraConfig.luau`. This
-  keeps the whole game testable in Studio before anything costs real money.
-- Retention beats pricing. A game that free players enjoy grows; a game that paywalls its loop
-  gets delisted by moderation and forgotten by players.
+Deliberate choice for a first game:
+
+- **Monetization doesn't make a game fun — it makes a fun game profitable.** With no players
+  yet, revenue is zero while the compliance surface is real.
+- **It removes a whole class of risk.** Roblox audits `ProcessReceipt`, requires exact odds
+  disclosure for paid random items, and requires PolicyService gating. A first release is
+  better off without that liability.
+- **The effort goes into the game instead** — boss models, the shop UI, and the engagement
+  systems that make people stay.
+- **It's reversible.** The economy is data-driven; re-adding passes/products later is a
+  config table plus a storefront, not a rewrite.
+
+Roblox's monetization rules still apply the day you add it back: 70% revenue share, DevEx at
+30,000 earned Robux with age 13+ and a tax form, and paid random items need disclosed odds
+summing to exactly 100%.
 
 ---
 
