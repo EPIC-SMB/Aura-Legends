@@ -1,0 +1,27 @@
+{
+  "name": "Aura Legends",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "AuraConfig": {
+        "$path": "src/ReplicatedStorage/AuraConfig.luau"
+      }
+    },
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "AuraServer": {
+        "$path": "src/ServerScriptService/AuraServer.server.luau"
+      }
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "AuraClient": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/AuraClient.client.luau"
+        }
+      }
+    }
+  }
+}
