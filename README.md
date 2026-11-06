@@ -217,34 +217,73 @@ access enabled) and UI feel/animation.
 
 ---
 
-## 10. Roadmap
+## 10. What's left to build
 
-| # | Milestone | Status |
+Priority tiers. Tier 1 is required before the game can honestly be called complete.
+
+### 🔴 Tier 1 — Required for a complete game
+
+| # | Item | Why it matters | State |
+|---|---|---|---|
+| 1 | **Aura abilities** | Auras are currently trophies, not powers. `Config.AURAS` defines `Ignite`, `Freeze`, `Surge`, `Phase`, `Nova` — nothing reads them. Needs ability buttons, cooldowns, real effects, and an equip system. | Not built |
+| 2 | **Shop UI** | Only a `POWER +` button exists. Stamina and Magnet are buyable only through code — no player can purchase them. Needs a real upgrade panel with level, cost and effect preview. | Not built |
+| 3 | **Boss models** | Five bosses, all identical glowing red cubes with different stats. Each needs its own silhouette (body, head, legs, eyes). | Not built |
+| 4 | **Multiplayer correctness** | Boss models are created on the server into `workspace.AuraBosses`, which replicates to every client. In a 2-player server, player B sees player A's boss. Needs a decision: render bosses client-side (each player sees only their own) or make bosses shared co-op. | **Known bug** |
+
+### 🟡 Tier 2 — Makes it feel like a real game
+
+| # | Item | State |
 |---|---|---|
-| 1 | Skeleton loads in Studio | ✅ Done |
-| 2 | Boss fights (HP, damage, death/respawn, zone unlock) | ✅ Done |
-| 3 | Aura drops + collection screen | ✅ Done |
-| 4 | Boss visible on spawn (arena laid out along -z) | ✅ Done |
-| 5 | Remove all monetization (fully free game) | ✅ Done |
-| 6 | **Boss models** — real silhouettes instead of cubes | 🔜 Next |
-| 7 | Shop UI (upgrade store, daily reward panel) | |
-| 8 | Engagement layer (near-miss, streak milestones, social proof) | |
-| 9 | Aura equip + combat effects | |
-| 10 | Persistence verified across sessions | |
-| 11 | Maturity questionnaire in Creator Dashboard | |
+| 5 | Daily reward calendar UI | Server logic works (+Energy), no UI — players can't see the 7-day escalation |
+| 6 | Aura equip + player visual | No equip UI; no trail/effect when an Aura is equipped |
+| 7 | Near-miss messaging | `Config.ENGAGEMENT.NearMissThreshold` exists, not implemented |
+| 8 | Streak milestones | `Config.DAILY.StreakBonusCap` exists, not implemented |
+| 9 | Social proof | `Config.ENGAGEMENT.SocialProofMinPlayers` exists, not implemented ("X players online") |
+| 10 | Juice | No sound, no drop beams, no hit flashes, no screen shake |
 
-### Known issues
+### 🔵 Tier 3 — World & polish
 
-**Boss is currently a glowing red cube.** Verified working — a 20×20×20 neon body at
-`(0, 11, -45)`, correctly in view on spawn (`in_view_dot = 0.954`). It has no silhouette yet:
-no head, legs, or eyes, so "Cinder Wolf" doesn't read as a wolf. This is the top polish item.
+| # | Item | State |
+|---|---|---|
+| 11 | Zone theming | All 5 zones share one arena; Ember Forest, Frost Peak and Storm Coast look identical |
+| 12 | Boss telegraphs / dodge | Boss hits are automatic — no player agency, no timing skill |
+| 13 | Boss phases / enrage | Every boss uses the same attack loop; only numbers differ |
+| 14 | Arena decoration | Bare platform + pads |
+| 15 | Beacon decision | Keep / recolour / remove — open question |
+| 16 | Magnet effect | Buyable, but there is no pickup system, so it does nothing |
 
-**The boss beacon is red and reads as a "zone marker".** It's a 70-stud translucent neon pillar
-at `(0, 36, -70)` marking the arena. Open question: keep, recolour, or remove.
+### ⚫ Tier 4 — Release
+
+| # | Item | Owner |
+|---|---|---|
+| 17 | Persistence verification | Needs the place published + Studio API access enabled; saves currently reset in Studio |
+| 18 | Remove debug attributes | `AuraDbgPlayerHP`, `AuraDbgBossHP`, `AuraDbgBossZone`, `AuraDbgAuras` must be stripped before shipping |
+| 19 | Maturity questionnaire | Fill it in Creator Dashboard to match `Config.MATURITY` |
+| 20 | Leaderboard (optional) | Stats exist (`LifetimeEnergy`, `BossKills`), no UI |
+
+### Recommended order
+
+1. **Aura abilities** — connects collection → combat, makes the whole loop feed itself
+2. **Shop UI** — without it, two of three upgrades are unreachable by players
+3. **Boss models** — the visual payoff
+4. **Multiplayer fix** — small, but a correctness bug that gets worse with more players
+
+Then Tier 2's engagement layer (items 5–9): it is mostly config + UI once the foundations exist.
 
 ---
 
-## 11. Why there's no monetization
+## 11. Known issues
+
+**Boss is currently a glowing red cube.** Verified working — a 20×20×20 neon body at
+`(0, 11, -45)`, correctly in view on spawn (`in_view_dot = 0.954`). It has no silhouette yet:
+no head, legs, or eyes, so "Cinder Wolf" doesn't read as a wolf. See Tier 1 item 3.
+
+**The boss beacon is red and reads as a "zone marker".** It's a 70-stud translucent neon pillar
+at `(0, 36, -70)` marking the arena. Open question: keep, recolour, or remove. See Tier 3 item 15.
+
+---
+
+## 12. Why there's no monetization
 
 Deliberate choice for a first game:
 
